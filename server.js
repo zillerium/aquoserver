@@ -29,12 +29,12 @@ var rwaSchema = new mongoose.Schema({
         default: null
     },
     rwaPrice: {
-        type: String,
+        type: mongoose.Schema.Types.Decimal128,
         default: null
     },
     rwaPriceDate: {
-        type: String,
-        default: null
+        type: Date,
+        default: Date.now
     },
     rwaCurrency: {
         type: String,
@@ -101,13 +101,15 @@ const updateRec = async (rwaRec, dbKey) => {
     return rtn;
 }
 
-const insertRec = async (rwaRec) => {
-    var rtn = 0;
-    rtn = await rwaRec.save(async (err, doc) => {
-        return (err ? rtn = 1 : rtn = 0);
-    })
 
-    return rtn;
+const insertRec = async (rwaRec) => {
+    try {
+        await rwaRec.save(); // Save the document without a callback
+        return 0; // Return 0 if save is successful
+    } catch (err) {
+        console.error(err); // Log the error if any
+        return 1; // Return 1 if there is an error
+    }
 }
 
 
@@ -139,7 +141,7 @@ const addRwaDB = async (
     if (found)
         rtn = await updateRec(jsonDB, dbKey);
     else
-        rtn = await insertRec(priceRec);
+        rtn = await insertRec(rwaRec);
 
 
     return rtn;
