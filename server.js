@@ -1,3 +1,4 @@
+ 
 import {
     createRequire
 } from "module";
@@ -12,6 +13,24 @@ const __dirname = path.dirname(__filename);
 const mongoose = require('mongoose');
 mongoose.connect('mongodb://127.0.0.1:27017/aquo');
 
+var rwaIdSchema = new mongoose.Schema({
+    idKey: {
+        type: Number,
+        default: 0,
+        unique: true,
+        required: true,
+        index: true
+    },
+    rwaPassword: {
+        type: String,
+        default: null
+    },
+    rwaProspectusAddr: {
+        type: String,
+        default: null
+    },
+});
+
 var rwaSchema = new mongoose.Schema({
     dbKey: {
         type: String,
@@ -21,8 +40,8 @@ var rwaSchema = new mongoose.Schema({
         index: true
     },
     rwaId: {
-        type: String,
-        default: null
+        type: Number,
+        default: 0
     },
     rwaDesc: {
         type: String,
@@ -30,7 +49,7 @@ var rwaSchema = new mongoose.Schema({
     },
     rwaPrice: {
         type: mongoose.Schema.Types.Decimal128,
-        default: null
+        default: 0
     },
     rwaPriceDate: {
         type: Date,
@@ -38,12 +57,14 @@ var rwaSchema = new mongoose.Schema({
     },
     rwaCurrency: {
         type: String,
-        default: null
+        default: 'USD'
     },
 });
 
 
 var rwaDBRec = mongoose.model("rwa", rwaSchema);
+
+var rwaIdDBRec = mongoose.model("rwaId", rwaIdSchema);
 
 const fs = require("fs");
 const http = require("http");
@@ -88,7 +109,7 @@ app.use(bodyParser.urlencoded({
     extended: true
 }));
 
-//app.post("/getDBData", function (req, res) {
+ 
 const updateRec = async (rwaRec, dbKey) => {
 
     var rtn = 0;
@@ -147,41 +168,7 @@ const addRwaDB = async (
     return rtn;
 
 }
-const addRwaDBApi = async (
-    dbKey,
-    rwaId,
-    rwaDesc,
-    rwaPrice,
-    rwaPriceDate,
-    rwaCurrency
-) => {
-
-    let jsonDB = {
-        dbKey: dbKey,
-        rwaId: rwaId,
-        rwaDesc: rwaDesc,
-        rwaPrice: rwaPrice,
-        rwaPriceDate: rwaPriceDate,
-        rwaCurrency: rwaCurrency,
-    };
-
-    let rwaRec = new rwaDBRec(jsonDB);
-    console.log(rwaRec);
-    let rtn = 0;
-    var found = false;
-    found = await rwaDBRec.findOne({
-        'dbKey': dbKey
-    });
-    if (found)
-        rtn = await updateRec(jsonDB, dbKey);
-    else
-        rtn = await insertRec(rwaRec);
-
-
-    return rtn;
-
-}
-
+ 
 app.get("/ping", cors(),
     asyncHandler(async (req, res, next) => {
 
@@ -191,12 +178,7 @@ app.get("/ping", cors(),
         });
     }));
 
-//app.get("/ping", function (req, res) {
-//  console.log('nodejs ccalled');
-//      res.json({ message: "pong" });
-//});
-//app.get("/searchDB", function (req, res) {
-// OCcurl https://peacioapi.com:3000/searchDB/hello%20there
+ 
 app.get("/searchDB/:query", cors(),
     asyncHandler(async (req, res, next) => {
         let x = req.params.query;
@@ -246,54 +228,27 @@ app.get("/searchRwaDB/:query", cors(),
         });
     }))
 
-app.get("/getRwa/:query", cors(),
+app.get("/getRwa/:rwaId", cors(),
     asyncHandler(async (req, res, next) => {
-        let x = req.params.query;
-        let xstr = "";
-        if (x) xstr = x.toString();
-        let json = {
-            dbKey: {
-                $regex: x,
-                $options: 'i'
-            }
+        const rwaId = req.params.rwaId; // Get rwaId from the route parameter
+
+        // Query the database for a document with the matching rwaId
+        const record = await rwaDBRec.findOne({ rwaId: rwaId });
+
+        console.log(record); // Log the found record to the console
+
+        // Respond with the found record, or a suitable message if not found
+        if (record) {
+            res.json({ data: record });
+        } else {
+            res.status(404).send({ message: "Record not found" });
         }
-
-        let recs = await rwaDBRec.findOne(json);
-
-        console.log(json);
-        console.log(x);
-        console.log(xstr);
-        console.log(recs);
-        res.json({
-            data: [recs]
-        });
-    })
-)
-
-
-
-//app.get("/getDBData", function (req, res) {
-app.post("/getDBData", cors(),
-    asyncHandler(async (req, res, next) => {
-        const keyword = req.body.keyword;
-
-        console.log(req.body);
-        console.log("keyword " + keyword);
-        let data = {
-            test: 'test'
-        };
-
-        res.json({
-            data: data
-        })
     })
 );
-
-
+ 
 app.post("/addRwaAPI", cors(),
     asyncHandler(async (req, res, next) => {
-
-
+    // this adds the price into the database
         const dbKey = req.body.dbKey;
         const rwaId = req.body.rwaId;
         const rwaDesc = req.body.rwaDesc;
@@ -318,10 +273,51 @@ app.post("/addRwaAPI", cors(),
         })
     })
 );
+
+app.post("/regRwaAPI", cors(),
+    asyncHandler(async (req, res, next) => {
+        const rwaPassword = req.body.rwaPassword;
+        const rwaProspectusAddr = req.body.rwaProspectusAddr;
+
+        try {
+            // Find the current maximum idKey
+            const maxIdRecord = await rwaIdDBRec.findOne().sort('-idKey').limit(1);
+            const newIdKey = maxIdRecord ? maxIdRecord.idKey + 1 : 1; // If no records exist, start with 1
+
+            // Create a new record with the new idKey, rwaPassword, and rwaProspectusAddr
+            const newRecord = new rwaIdDBRec({
+                idKey: newIdKey,
+                rwaPassword: rwaPassword,
+                rwaProspectusAddr: rwaProspectusAddr
+            });
+
+            // Save the new record
+            await newRecord.save();
+
+            // Respond with success
+            res.json({
+                success: true,
+                message: 'RWA registered successfully',
+                idKey: newIdKey
+            });
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({
+                success: false,
+                message: 'An error occurred while registering RWA'
+            });
+        }
+    })
+);
+ 
+ 
+
+
+
 const httpsServer = https.createServer(credentials, app);
 const httpServer = http.createServer(app);
 
-httpsServer.listen(3001, () => {
+httpsServer.listen(3002, () => {
     //httpServer.listen(3000, () => {
-    console.log("HTTPS Server running on port 3001");
+    console.log("HTTPS Server running on port 3002");
 });
