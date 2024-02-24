@@ -274,6 +274,25 @@ app.post("/addRwaAPI", cors(),
     })
 );
 
+app.get("/getAllRwa", cors(), 
+  asyncHandler(async (req, res, next) => {
+      // Query the database for all documents
+      const records = await rwaIdDBRec.find({});
+
+      // Map the retrieved records to the desired format
+      const responseData = records.map(record => ({
+          rwaid: record.idKey,
+          rwaaddress: record.rwaProspectusAddr
+      }));
+
+      console.log(responseData); // Log the response data to the console
+
+      // Respond with the mapped data
+      res.json(responseData);
+  })
+);
+
+
 app.post("/regRwaAPI", cors(),
     asyncHandler(async (req, res, next) => {
         const rwaPassword = req.body.rwaPassword;
