@@ -13,6 +13,8 @@ const __dirname = path.dirname(__filename);
 const mongoose = require('mongoose');
 mongoose.connect('mongodb://127.0.0.1:27017/aquo');
 
+const bcrypt = require('bcrypt');
+const saltRounds = 10;
 var rwaIdSchema = new mongoose.Schema({
     idKey: {
         type: Number,
@@ -245,8 +247,50 @@ app.get("/getRwa/:rwaId", cors(),
         }
     })
 );
- 
+
+
 app.post("/addRwaAPI", cors(),
+  asyncHandler(async (req, res, next) => {
+    // Extracting fields from the request body
+    const { dbKey, rwaId, rwaDesc, rwaPrice, rwaPriceDate, rwaCurrency, rwapassword } = req.body;
+    console.log(req.body);
+
+    // Hash and salt the rwapassword
+    const rwapasswordsalt = await bcrypt.hash(rwapassword, saltRounds);
+
+    // Find the record for the specific rwaId
+    const record = await rwaIdDBRec.findOne({ idKey: rwaId });
+
+    if (record) {
+      // Compare the hashed passwords
+      const match = await bcrypt.compare(rwapassword, record.rwaPassword);
+console.log("password ", rwapasswordsalt);
+console.log("password db ", record.rwaPassword);
+      if (match) {
+        // If the passwords match, proceed to add the data
+        let rtn = await addRwaDB(
+          dbKey,
+          rwaId,
+          rwaDesc,
+          rwaPrice,
+          rwaPriceDate,
+          rwaCurrency
+        );
+
+        res.json({ rtn });
+      } else {
+        // If the passwords do not match, return an error
+        res.json({ rtn: 500 });
+      }
+    } else {
+      // If no record is found for the rwaId, return an error
+      res.json({ rtn: 500 });
+    }
+  })
+);
+
+
+app.post("/addRwaAPI1", cors(),
     asyncHandler(async (req, res, next) => {
     // this adds the price into the database
         const dbKey = req.body.dbKey;
@@ -292,32 +336,44 @@ app.get("/getAllRwa", cors(),
   })
 );
 
-
 app.post("/regRwaAPI", cors(),
     asyncHandler(async (req, res, next) => {
         const rwaPassword = req.body.rwaPassword;
         const rwaProspectusAddr = req.body.rwaProspectusAddr;
-
+console.log("password = ", rwaPassword);
         try {
             // Find the current maximum idKey
             const maxIdRecord = await rwaIdDBRec.findOne().sort('-idKey').limit(1);
             const newIdKey = maxIdRecord ? maxIdRecord.idKey + 1 : 1; // If no records exist, start with 1
 
-            // Create a new record with the new idKey, rwaPassword, and rwaProspectusAddr
-            const newRecord = new rwaIdDBRec({
-                idKey: newIdKey,
-                rwaPassword: rwaPassword,
-                rwaProspectusAddr: rwaProspectusAddr
-            });
+            // Hash the password before storing it
+            bcrypt.hash(rwaPassword, saltRounds, async function(err, hash) {
+                if (err) {
+                    // Handle error
+                    console.error(err);
+                    res.status(500).json({
+                        success: false,
+                        message: 'An error occurred while hashing the password'
+                    });
+                    return;
+                }
 
-            // Save the new record
-            await newRecord.save();
+                // Create a new record with the new idKey, hashed password, and rwaProspectusAddr
+                const newRecord = new rwaIdDBRec({
+                    idKey: newIdKey,
+                    rwaPassword: hash, // Store the hashed password
+                    rwaProspectusAddr: rwaProspectusAddr
+                });
 
-            // Respond with success
-            res.json({
-                success: true,
-                message: 'RWA registered successfully',
-                idKey: newIdKey
+                // Save the new record
+                await newRecord.save();
+
+                // Respond with success
+                res.json({
+                    success: true,
+                    message: 'RWA registered successfully',
+                    idKey: newIdKey
+                });
             });
         } catch (error) {
             console.error(error);
@@ -328,8 +384,8 @@ app.post("/regRwaAPI", cors(),
         }
     })
 );
- 
- 
+
+
 
 
 
