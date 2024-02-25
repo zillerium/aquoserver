@@ -31,6 +31,10 @@ var rwaIdSchema = new mongoose.Schema({
         type: String,
         default: null
     },
+    rwaKeyDesc: {
+        type: String,
+        default: null
+    },
 });
 
 var rwaSchema = new mongoose.Schema({
@@ -168,6 +172,26 @@ const insertRec = async (rwaRec) => {
     }
 }
 
+app.get("/getAllRwaPriceData/:rwaId", cors(),
+    asyncHandler(async (req, res, next) => {
+        const rwaId = req.params.rwaId; // Extract rwaId from the route parameter
+
+        // Query the database for records with the specified rwaId and sort them by rwaPriceDate
+        const records = await rwaDBRec.find({ rwaId: rwaId }).sort({ rwaPriceDate: 1 });
+
+        console.log(records); // Log the records to the console for debugging purposes
+
+        // If records are found, return them as an array of JSON objects
+        if (records && records.length > 0) {
+            res.json(records);
+        } else {
+            // If no records are found, return a message indicating that
+            res.status(404).send({ message: "No records found for the specified rwaId" });
+        }
+    })
+);
+
+
 const addRwaDB = async (
     dbKey,
     rwaId,
@@ -195,41 +219,6 @@ const addRwaDB = async (
 }
 
 
-
-
-const addRwaDB1 = async (
-    dbKey,
-    rwaId,
-    rwaDesc,
-    rwaPrice,
-    rwaPriceDate,
-    rwaCurrency
-) => {
-
-    let jsonDB = {
-        dbKey: dbKey,
-        rwaId: rwaId,
-        rwaDesc: rwaDesc,
-        rwaPrice: rwaPrice,
-        rwaPriceDate: rwaPriceDate,
-        rwaCurrency: rwaCurrency
-    };
-    let rwaRec = new rwaDBRec(jsonDB);
-    console.log(rwaRec);
-    let rtn = 0;
-    var found = false;
-    found = await rwaDBRec.findOne({
-        'dbKey': dbKey
-    });
-    if (found)
-        rtn = await updateRec(jsonDB, dbKey);
-    else
-        rtn = await insertRec(rwaRec);
-
-
-    return rtn;
-
-}
  
 app.get("/ping", cors(),
     asyncHandler(async (req, res, next) => {
@@ -357,7 +346,8 @@ app.get("/getAllRwa", cors(),
       // Map the retrieved records to the desired format
       const responseData = records.map(record => ({
           rwaid: record.idKey,
-          rwaaddress: record.rwaProspectusAddr
+          rwaaddress: record.rwaProspectusAddr,
+	      rwaKeyDesc: record.rwaKeyDesc,
       }));
 
       console.log(responseData); // Log the response data to the console
@@ -371,6 +361,7 @@ app.post("/regRwaAPI", cors(),
     asyncHandler(async (req, res, next) => {
         const rwaPassword = req.body.rwaPassword;
         const rwaProspectusAddr = req.body.rwaProspectusAddr;
+        const rwaKeyDesc = req.body.rwaKeyDesc;
 
         console.log("password = ", rwaPassword);
 
@@ -407,7 +398,8 @@ app.post("/regRwaAPI", cors(),
                 const newRecord = new rwaIdDBRec({
                     idKey: newIdKey,
                     rwaPassword: hash, // Store the hashed password
-                    rwaProspectusAddr: rwaProspectusAddr
+                    rwaProspectusAddr: rwaProspectusAddr,
+			rwaKeyDesc: rwaKeyDesc
                 });
 
                 // Save the new record
@@ -429,57 +421,6 @@ app.post("/regRwaAPI", cors(),
         }
     })
 );
-
-
-app.post("/regRwaAPI1", cors(),
-    asyncHandler(async (req, res, next) => {
-        const rwaPassword = req.body.rwaPassword;
-        const rwaProspectusAddr = req.body.rwaProspectusAddr;
-console.log("password = ", rwaPassword);
-        try {
-            // Find the current maximum idKey
-            const maxIdRecord = await rwaIdDBRec.findOne().sort('-idKey').limit(1);
-            const newIdKey = maxIdRecord ? maxIdRecord.idKey + 1 : 1; // If no records exist, start with 1
-
-            // Hash the password before storing it
-            bcrypt.hash(rwaPassword, saltRounds, async function(err, hash) {
-                if (err) {
-                    // Handle error
-                    console.error(err);
-                    res.status(500).json({
-                        success: false,
-                        message: 'An error occurred while hashing the password'
-                    });
-                    return;
-                }
-
-                // Create a new record with the new idKey, hashed password, and rwaProspectusAddr
-                const newRecord = new rwaIdDBRec({
-                    idKey: newIdKey,
-                    rwaPassword: hash, // Store the hashed password
-                    rwaProspectusAddr: rwaProspectusAddr
-                });
-
-                // Save the new record
-                await newRecord.save();
-
-                // Respond with success
-                res.json({
-                    success: true,
-                    message: 'RWA registered successfully',
-                    idKey: newIdKey
-                });
-            });
-        } catch (error) {
-            console.error(error);
-            res.status(500).json({
-                success: false,
-                message: 'An error occurred while registering RWA'
-            });
-        }
-    })
-);
-
 
 
 
