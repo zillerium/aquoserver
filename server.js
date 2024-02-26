@@ -281,6 +281,26 @@ app.get("/searchRwaDB/:query", cors(),
 
 app.get("/getRwa/:rwaId", cors(),
     asyncHandler(async (req, res, next) => {
+        const rwaId = parseInt(req.params.rwaId); // Convert rwaId from string to integer, if necessary
+
+        // Query the database for the most recent document with the matching rwaId
+        const record = await rwaDBRec.findOne({ rwaId: rwaId }).sort({ rwaPriceDate: -1 }); // Sort by date in descending order
+
+        console.log(record); // Log the found record to the console
+
+        // Respond with the rwaPrice from the found record, or a suitable message if not found
+        if (record) {
+            const rwaPrice1 = record.rwaPrice ? record.rwaPrice.toString() : "0";
+            res.json({ rwaPrice: rwaPrice1 });
+        } else {
+            res.status(404).send({ message: "Record not found" });
+        }
+    })
+);
+
+
+app.get("/getRwa1/:rwaId", cors(),
+    asyncHandler(async (req, res, next) => {
         const rwaId = req.params.rwaId; // Get rwaId from the route parameter
 
         // Query the database for a document with the matching rwaId
